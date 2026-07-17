@@ -6,8 +6,6 @@
     <title>FluidStream | Listener</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <!-- Supabase Client Dependency Library -->
-    <script src="https://islyccbrpxorgwnpmnkp.supabase.co"></script>
     <style>
         .liquid-bg { background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #311042 100%); }
         .liquid-glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.07); }
@@ -140,9 +138,6 @@
     <audio id="audio-player"></audio>
 
     <script>
-        // Global Initialization of Connected Database Relay Network
-        const _supabase = supabase.createClient('YOUR_SUPABASE_URL', 'YOUR_SUPABASE_KEY');
-
         let currentTrackIndex = -1;
         let tracksList = [];
         const audio = document.getElementById('audio-player');
@@ -163,28 +158,27 @@
             }
         }
 
-        async function handleRegister(e) {
+        function handleRegister(e) {
             e.preventDefault();
             const username = document.getElementById('reg-username').value;
             const email = document.getElementById('reg-email').value;
             const password = document.getElementById('reg-password').value;
 
-            let { data: users } = await _supabase.from('registered_users').select('*');
-            users = users || [];
+            let users = JSON.parse(localStorage.getItem('registered_users')) || [];
             if (users.find(u => u.username === username)) { alert("Username in use."); return; }
 
-            await _supabase.from('registered_users').insert([{ username, email, password, registeredAt: new Date().toLocaleString(), status: 'Pending' }]);
+            users.push({ username, email, password, registeredAt: new Date().toLocaleString(), status: 'Pending' });
+            localStorage.setItem('registered_users', JSON.stringify(users));
             alert("Registered successfully!");
             toggleAuthTab('login');
         }
 
-        async function handleLogin(e) {
+        function handleLogin(e) {
             e.preventDefault();
             const username = document.getElementById('login-username').value;
             const password = document.getElementById('login-password').value;
 
-            let { data: users } = await _supabase.from('registered_users').select('*');
-            users = users || [];
+            let users = JSON.parse(localStorage.getItem('registered_users')) || [];
             const user = users.find(u => u.username === username && u.password === password);
 
             if (user) {
@@ -200,10 +194,9 @@
             document.getElementById('auth-screen').classList.remove('hidden');
         }
 
-        async function loadLibrary() {
+        function loadLibrary() {
             const grid = document.getElementById('track-grid');
-            let { data: music } = await _supabase.from('uploaded_music').select('*').order('id', { ascending: true });
-            tracksList = music || [];
+            tracksList = JSON.parse(localStorage.getItem('uploaded_music')) || [];
 
             if (tracksList.length === 0) {
                 grid.innerHTML = `<div class="col-span-full text-center py-20 text-slate-500 text-sm">No tracks available.</div>`;
@@ -263,12 +256,21 @@
 
         function changeVolume(e) { audio.volume = e.target.value; }
 
-        // AUTOMATIC LIVE CLOUD CHANNEL STORAGE MONITOR (Syncs views across Netlify seamlessly)
-        setInterval(() => {
-            if (!document.getElementById('player-screen').classList.contains('hidden')) {
+        // AUTOMATIC LIVE BACKGROUND STORAGE MONITOR (Updates elements instantly without reload)
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'uploaded_music') {
                 loadLibrary();
+                // If currently playing track was edited in background, sync info immediately
+                if (currentTrackIndex !== -1) {
+                    const freshList = JSON.parse(e.newValue) || [];
+                    const runningTrack = freshList[currentTrackIndex];
+                    if (runningTrack) {
+                        document.getElementById('current-title').textContent = runningTrack.name;
+                        document.getElementById('current-cover').src = runningTrack.thumbnail;
+                    }
+                }
             }
-        }, 4000);
+        });
     </script>
 </body>
 </html>
